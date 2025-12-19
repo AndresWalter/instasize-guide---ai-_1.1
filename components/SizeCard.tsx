@@ -258,7 +258,7 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     if (mediaType === 'image') {
       processImageFrame();
     }
-  }, [fitMode, activeFilter, adjustments, mediaType, mediaSrc]);
+  }, [fitMode, activeFilter, adjustments, mediaType, mediaSrc, showSafeZones, showGridGuide]);
 
 
   // --- VIDEO PROCESSING ---
@@ -657,8 +657,8 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
               <button
                 onClick={() => setShowSafeZones(!showSafeZones)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border transition-all ${showSafeZones
-                    ? 'bg-red-500/20 border-red-500 text-red-400'
-                    : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                  ? 'bg-red-500/20 border-red-500 text-red-400'
+                  : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
                   }`}
                 title="Mostrar zonas que cubre Instagram (Likes, comentarios, etc)"
               >
@@ -669,8 +669,8 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
               <button
                 onClick={() => setShowGridGuide(!showGridGuide)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border transition-all ${showGridGuide
-                    ? 'bg-purple-500/20 border-purple-500 text-purple-400'
-                    : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                  ? 'bg-purple-500/20 border-purple-500 text-purple-400'
+                  : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
                   }`}
                 title="Guía de recorte 1:1 (Feed)"
               >
@@ -695,7 +695,7 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
 
               {mediaType === 'image' && (
                 <button
-                  onClick={() => {/* Cloud logic same as before, simplified for this file */ }}
+                  onClick={() => window.open('https://drive.google.com/drive/u/0/my-drive', '_blank')}
                   className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-green-600/20"
                 >
                   <CloudUpload size={14} />
