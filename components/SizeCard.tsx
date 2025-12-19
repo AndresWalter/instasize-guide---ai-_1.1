@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { SizeSpec } from '../types';
-import { 
-  UserCircle, Square, Smartphone, Image as ImageIcon, Clock, Film, 
-  Upload, Download, RefreshCw, Maximize2, Crop, CloudUpload, 
-  Wand2, Sliders, Undo2, Play, Pause, Video
+import {
+  UserCircle, Square, Smartphone, Image as ImageIcon, Clock, Film,
+  Upload, Download, RefreshCw, Maximize2, Crop, CloudUpload,
+  Wand2, Sliders, Undo2, Play, Pause, Video, Grid, Eye, EyeOff
 } from 'lucide-react';
 
 interface SizeCardProps {
@@ -39,7 +39,7 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [mediaSrc, setMediaSrc] = useState<string | null>(null);
-  
+
   // Processing State
   const [isProcessing, setIsProcessing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -60,6 +60,9 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     contrast: 100,
     saturation: 100,
   });
+  const [showSafeZones, setShowSafeZones] = useState(false);
+  const [showGridGuide, setShowGridGuide] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // --- CLEANUP ---
   useEffect(() => {
@@ -80,14 +83,14 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
       setOriginalFile(file);
       const url = URL.createObjectURL(file);
       setMediaSrc(url);
-      
+
       const type = file.type.startsWith('video/') ? 'video' : 'image';
       setMediaType(type);
-      
+
       // Reset edits
       setActiveFilter('normal');
       setAdjustments({ brightness: 100, contrast: 100, saturation: 100 });
-      
+
       if (type === 'image') {
         setTimeout(() => processImageFrame(), 100);
       } else {
@@ -141,13 +144,13 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
       const scaledHeight = sh * scale;
       const x = (spec.width - scaledWidth) / 2;
       const y = (spec.height - scaledHeight) / 2;
-      
+
       if (filterStr) ctx.filter = filterStr;
       ctx.drawImage(source, x, y, scaledWidth, scaledHeight);
       ctx.filter = 'none';
     } else {
       // --- CONTAIN / FIT ---
-      
+
       // 1. Blur Background
       const scaleCover = Math.max(spec.width / sw, spec.height / sh);
       const wCover = sw * scaleCover;
@@ -155,9 +158,9 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
       const xCover = (spec.width - wCover) / 2;
       const yCover = (spec.height - hCover) / 2;
 
-      ctx.filter = `blur(20px) ${filterStr}`; 
+      ctx.filter = `blur(20px) ${filterStr}`;
       ctx.drawImage(source, xCover - 20, yCover - 20, wCover + 40, hCover + 40);
-      
+
       // 2. Dark Overlay
       ctx.filter = 'none';
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
@@ -179,6 +182,66 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
       ctx.filter = 'none';
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
+    }
+
+    // --- OVERLAYS (Draw on top of everything) ---
+
+    // 1. Grid Crop Guide (Square Guide)
+    if (showGridGuide) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([10, 10]);
+
+      // Draw 1:1 Square centered
+      // Determine side length based on shortest dimension to fit
+      const side = Math.min(spec.width, spec.height);
+      const x = (spec.width - side) / 2;
+      const y = (spec.height - side) / 2;
+
+      ctx.strokeRect(x, y, side, side);
+
+      // Thirds grid lines inside the square
+      ctx.beginPath();
+      // Verticals
+      ctx.moveTo(x + side / 3, y);
+      ctx.lineTo(x + side / 3, y + side);
+      ctx.moveTo(x + (side * 2) / 3, y);
+      ctx.lineTo(x + (side * 2) / 3, y + side);
+      // Horizontals
+      ctx.moveTo(x, y + side / 3);
+      ctx.lineTo(x + side, y + side / 3);
+      ctx.moveTo(x, y + (side * 2) / 3);
+      ctx.lineTo(x + side, y + (side * 2) / 3);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // 2. Mobile Safe Zones (Reels/Stories style)
+    if (showSafeZones) {
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; // Red-ish tint for danger zones
+
+      // Approximate safe zones logic based on typical mobile screen ratios (9:16)
+      // Adjust these ratios as needed for specific "Instagram" feeling
+
+      const h = spec.height;
+      const w = spec.width;
+
+      // Top Bar (Username, etc) - approx 15%
+      ctx.fillRect(0, 0, w, h * 0.15);
+
+      // Bottom Bar (Comment input, etc) - approx 20%
+      ctx.fillRect(0, h * 0.80, w, h * 0.20);
+
+      // Right Side Actions (Likes, comments icons) - approx 15% width at bottom right
+      // Usually starts around 40% down up to 80% down
+      ctx.fillRect(w * 0.82, h * 0.40, w * 0.18, h * 0.40);
+
+      // Label
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 20px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText("ZONA DE INTERFAZ", w / 2, h * 0.08);
+      ctx.fillText("ZONA DE INTERFAZ", w / 2, h * 0.90);
     }
   };
 
@@ -209,16 +272,16 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
   useEffect(() => {
     if (mediaType === 'video' && isPlaying) {
       if (videoRef.current) {
-         videoRef.current.play().catch(e => console.log("Autoplay blocked", e));
-         videoLoop();
+        videoRef.current.play().catch(e => console.log("Autoplay blocked", e));
+        videoLoop();
       }
     } else if (mediaType === 'video' && !isPlaying) {
-       videoRef.current?.pause();
-       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-       // Draw one frame so it doesn't vanish
-       if(videoRef.current) drawToCanvas(videoRef.current);
+      videoRef.current?.pause();
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      // Draw one frame so it doesn't vanish
+      if (videoRef.current) drawToCanvas(videoRef.current);
     }
-  }, [isPlaying, mediaType, fitMode, activeFilter, adjustments]);
+  }, [isPlaying, mediaType, fitMode, activeFilter, adjustments, showSafeZones, showGridGuide]);
 
 
   // --- DOWNLOAD / EXPORT ---
@@ -234,11 +297,11 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
         link.href = url;
         link.download = `instacanvas-${spec.id}.jpg`;
         link.click();
-        
+
         // Clean up
         setTimeout(() => URL.revokeObjectURL(url), 100);
       }, 'image/jpeg', 0.95);
-    } 
+    }
     else if (mediaType === 'video') {
       await exportVideo();
     }
@@ -251,13 +314,13 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    
+
     // Reset video to start
     video.currentTime = 0;
-    
+
     // Setup MediaRecorder
     const stream = canvas.captureStream(30); // 30 FPS
-    
+
     // Try to get audio from video element (Experimental/WebAudio might be needed for full robustness, 
     // but this captures visual edits perfectly)
     // NOTE: Audio capture from DOM elements is limited in standard APIs without complex WebAudio routing.
@@ -286,13 +349,13 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     try {
       await video.play();
       mediaRecorder.start();
-      
+
       // Stop when video ends
       video.onended = () => {
         mediaRecorder.stop();
         video.onended = null; // cleanup
       };
-      
+
       // Also start the draw loop if not running
       videoLoop();
     } catch (err) {
@@ -301,8 +364,67 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     }
   };
 
+  // --- DRAG & DROP HANDLERS ---
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+      // Reuse the logic from handleFileChange
+      if (mediaSrc) URL.revokeObjectURL(mediaSrc);
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+
+      setOriginalFile(file);
+      const url = URL.createObjectURL(file);
+      setMediaSrc(url);
+
+      const type = file.type.startsWith('video/') ? 'video' : 'image';
+      setMediaType(type);
+
+      // Reset edits
+      setActiveFilter('normal');
+      setAdjustments({ brightness: 100, contrast: 100, saturation: 100 });
+
+      if (type === 'image') {
+        // Allow state to update then process
+        // We can't immediately call processImageFrame because mediaSrc state isn't updated yet in closure
+        // But we can pass the url directly or wait. 
+        // Better: create a temp img to load it.
+        const img = new Image();
+        img.src = url;
+        img.onload = () => {
+          // We need to ensure the render phase has happened so logic picks up new state? 
+          // Actually drawToCanvas takes source directly. 
+          // But re-renders rely on state.
+          // Let's rely on the useEffect [mediaType, mediaSrc] to trigger the first draw!
+        };
+      } else {
+        setIsPlaying(true);
+      }
+    }
+  };
+
   return (
-    <div className="glass-panel p-6 rounded-2xl hover:bg-slate-800/50 transition-all duration-300 transform group border-t border-white/5 flex flex-col h-full">
+    <div
+      className={`glass-panel p-6 rounded-2xl transition-all duration-300 transform group border-t flex flex-col h-full ${isDragging
+        ? 'bg-pink-900/30 border-pink-500 scale-105 shadow-2xl shadow-pink-500/20'
+        : 'hover:bg-slate-800/50 border-white/5'
+        }`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <div className="flex items-start justify-between mb-4">
         <div className="p-3 bg-slate-900/50 rounded-xl group-hover:scale-110 transition-transform duration-300 border border-white/5">
           {getIcon(spec.iconName)}
@@ -311,14 +433,14 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
           {spec.aspectRatio}
         </span>
       </div>
-      
+
       <h3 className="text-xl font-bold mb-1 text-white group-hover:text-pink-400 transition-colors">
         {spec.title}
       </h3>
       <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-yellow-500 mb-4 font-mono">
         {spec.dimensions}
       </p>
-      
+
       <p className="text-slate-400 text-sm mb-6 leading-relaxed flex-grow">
         {spec.description}
       </p>
@@ -330,24 +452,24 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
             <RefreshCw size={14} className="text-pink-500" />
             {mediaType === 'video' ? 'Editor de Video' : 'Editor de Imagen'}
           </h4>
-          
+
           {mediaSrc && (
-             <button 
-               onClick={resetEdits}
-               className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 bg-slate-800 px-2 py-1 rounded"
-               title="Resetear filtros y ajustes"
-             >
-               <Undo2 size={10} /> Reset
-             </button>
+            <button
+              onClick={resetEdits}
+              className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 bg-slate-800 px-2 py-1 rounded"
+              title="Resetear filtros y ajustes"
+            >
+              <Undo2 size={10} /> Reset
+            </button>
           )}
         </div>
-        
+
         {/* Hidden Video Source */}
         {mediaType === 'video' && mediaSrc && (
-          <video 
+          <video
             ref={videoRef}
-            src={mediaSrc} 
-            className="hidden" 
+            src={mediaSrc}
+            className="hidden"
             muted={isExporting} // Mute during export to avoid feedback
             loop={!isExporting} // Loop in preview, not in export
             playsInline
@@ -356,20 +478,20 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
         )}
 
         {!mediaSrc ? (
-          <div 
+          <div
             onClick={() => fileInputRef.current?.click()}
             className="border-2 border-dashed border-slate-700 rounded-lg p-6 text-center cursor-pointer hover:border-pink-500 hover:bg-slate-800 transition-colors group/upload"
           >
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              accept="image/*,video/*" 
-              className="hidden" 
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept="image/*,video/*"
+              className="hidden"
             />
             <div className="flex justify-center gap-2 mb-2 text-slate-500 group-hover/upload:text-pink-400">
-               <Upload size={24} />
-               <Video size={24} />
+              <Upload size={24} />
+              <Video size={24} />
             </div>
             <p className="text-xs text-slate-400 group-hover/upload:text-slate-200">
               Sube foto o video
@@ -379,22 +501,22 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
           <div className="space-y-4">
             {/* Preview Canvas */}
             <div className="relative rounded-lg overflow-hidden border border-slate-600 bg-black/50 aspect-video flex items-center justify-center group/preview">
-              <canvas 
+              <canvas
                 ref={canvasRef}
                 className="max-h-full max-w-full object-contain"
               />
-              
+
               {/* Controls Overlay */}
               <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                 {mediaType === 'video' && !isExporting && (
-                   <button 
+                {mediaType === 'video' && !isExporting && (
+                  <button
                     onClick={() => setIsPlaying(!isPlaying)}
                     className="p-3 bg-white/20 hover:bg-white/40 backdrop-blur rounded-full text-white transition-all transform hover:scale-110"
-                   >
-                     {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-                   </button>
-                 )}
-                 <button 
+                  >
+                    {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+                  </button>
+                )}
+                <button
                   onClick={() => fileInputRef.current?.click()}
                   className="p-2 bg-black/50 hover:bg-black/80 rounded-full text-white backdrop-blur-sm transition-colors absolute bottom-2 right-2"
                   title="Cambiar archivo"
@@ -406,13 +528,13 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
               {/* Exporting Overlay */}
               {isExporting && (
                 <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10">
-                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mb-2"></div>
-                   <span className="text-xs text-white font-bold animate-pulse">Procesando Video...</span>
-                   <span className="text-[10px] text-slate-400">Espera a que termine el video</span>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mb-2"></div>
+                  <span className="text-xs text-white font-bold animate-pulse">Procesando Video...</span>
+                  <span className="text-[10px] text-slate-400">Espera a que termine el video</span>
                 </div>
               )}
             </div>
-            
+
             {/* Editor Controls */}
             <div>
               {/* Tabs */}
@@ -420,27 +542,24 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
                 <button
                   onClick={() => setActiveTab('format')}
                   disabled={isExporting}
-                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] uppercase font-bold tracking-wider rounded-md transition-all ${
-                    activeTab === 'format' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:text-slate-300'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] uppercase font-bold tracking-wider rounded-md transition-all ${activeTab === 'format' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:text-slate-300'
+                    }`}
                 >
                   <Crop size={12} /> Formato
                 </button>
                 <button
                   onClick={() => setActiveTab('filters')}
                   disabled={isExporting}
-                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] uppercase font-bold tracking-wider rounded-md transition-all ${
-                    activeTab === 'filters' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:text-slate-300'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] uppercase font-bold tracking-wider rounded-md transition-all ${activeTab === 'filters' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:text-slate-300'
+                    }`}
                 >
                   <Wand2 size={12} /> Filtros
                 </button>
                 <button
                   onClick={() => setActiveTab('adjust')}
                   disabled={isExporting}
-                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] uppercase font-bold tracking-wider rounded-md transition-all ${
-                    activeTab === 'adjust' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:text-slate-300'
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] uppercase font-bold tracking-wider rounded-md transition-all ${activeTab === 'adjust' ? 'bg-slate-800 text-white shadow' : 'text-slate-500 hover:text-slate-300'
+                    }`}
                 >
                   <Sliders size={12} /> Ajustes
                 </button>
@@ -450,24 +569,22 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
               <div className="min-h-[80px]">
                 {activeTab === 'format' && (
                   <div className="flex gap-2 justify-center pt-2">
-                    <button 
+                    <button
                       onClick={() => setFitMode('contain')}
-                      className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all w-20 ${
-                        fitMode === 'contain' 
-                          ? 'bg-pink-600/20 border-pink-500 text-white' 
-                          : 'border-slate-700 text-slate-400 hover:bg-slate-800'
-                      }`}
+                      className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all w-20 ${fitMode === 'contain'
+                        ? 'bg-pink-600/20 border-pink-500 text-white'
+                        : 'border-slate-700 text-slate-400 hover:bg-slate-800'
+                        }`}
                     >
                       <Maximize2 size={16} />
                       <span className="text-[10px]">Ajustar</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => setFitMode('cover')}
-                      className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all w-20 ${
-                        fitMode === 'cover' 
-                          ? 'bg-pink-600/20 border-pink-500 text-white' 
-                          : 'border-slate-700 text-slate-400 hover:bg-slate-800'
-                      }`}
+                      className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all w-20 ${fitMode === 'cover'
+                        ? 'bg-pink-600/20 border-pink-500 text-white'
+                        : 'border-slate-700 text-slate-400 hover:bg-slate-800'
+                        }`}
                     >
                       <Crop size={16} />
                       <span className="text-[10px]">Llenar</span>
@@ -481,11 +598,10 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
                       <button
                         key={f.id}
                         onClick={() => setActiveFilter(f.id)}
-                        className={`text-[10px] py-1.5 px-1 rounded border transition-all ${
-                          activeFilter === f.id
-                            ? 'bg-pink-600 border-pink-500 text-white'
-                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
-                        }`}
+                        className={`text-[10px] py-1.5 px-1 rounded border transition-all ${activeFilter === f.id
+                          ? 'bg-pink-600 border-pink-500 text-white'
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
+                          }`}
                       >
                         {f.label}
                       </button>
@@ -500,10 +616,10 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
                         <span>Brillo</span>
                         <span>{adjustments.brightness}%</span>
                       </div>
-                      <input 
-                        type="range" min="0" max="200" 
+                      <input
+                        type="range" min="0" max="200"
                         value={adjustments.brightness}
-                        onChange={(e) => setAdjustments({...adjustments, brightness: Number(e.target.value)})}
+                        onChange={(e) => setAdjustments({ ...adjustments, brightness: Number(e.target.value) })}
                         className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
                       />
                     </div>
@@ -512,10 +628,10 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
                         <span>Contraste</span>
                         <span>{adjustments.contrast}%</span>
                       </div>
-                      <input 
-                        type="range" min="0" max="200" 
+                      <input
+                        type="range" min="0" max="200"
                         value={adjustments.contrast}
-                        onChange={(e) => setAdjustments({...adjustments, contrast: Number(e.target.value)})}
+                        onChange={(e) => setAdjustments({ ...adjustments, contrast: Number(e.target.value) })}
                         className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
                       />
                     </div>
@@ -524,10 +640,10 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
                         <span>Saturación</span>
                         <span>{adjustments.saturation}%</span>
                       </div>
-                      <input 
-                        type="range" min="0" max="200" 
+                      <input
+                        type="range" min="0" max="200"
                         value={adjustments.saturation}
-                        onChange={(e) => setAdjustments({...adjustments, saturation: Number(e.target.value)})}
+                        onChange={(e) => setAdjustments({ ...adjustments, saturation: Number(e.target.value) })}
                         className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-pink-500"
                       />
                     </div>
@@ -535,25 +651,51 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
                 )}
               </div>
             </div>
-            
+
+            {/* Overlay Tools */}
+            <div className="flex gap-2 mb-3 bg-slate-950/50 p-1.5 rounded-lg justify-center mt-3">
+              <button
+                onClick={() => setShowSafeZones(!showSafeZones)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border transition-all ${showSafeZones
+                    ? 'bg-red-500/20 border-red-500 text-red-400'
+                    : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                  }`}
+                title="Mostrar zonas que cubre Instagram (Likes, comentarios, etc)"
+              >
+                {showSafeZones ? <EyeOff size={12} /> : <Eye size={12} />}
+                Safe Zone
+              </button>
+
+              <button
+                onClick={() => setShowGridGuide(!showGridGuide)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border transition-all ${showGridGuide
+                    ? 'bg-purple-500/20 border-purple-500 text-purple-400'
+                    : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                  }`}
+                title="Guía de recorte 1:1 (Feed)"
+              >
+                <Grid size={12} />
+                Grid 1:1
+              </button>
+            </div>
+
             <div className="flex gap-2 pt-2 border-t border-white/5">
-              <button 
+              <button
                 onClick={handleDownload}
                 disabled={isExporting}
-                className={`flex-1 text-white text-xs font-bold py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-lg ${
-                  isExporting 
-                    ? 'bg-slate-700 cursor-not-allowed text-slate-400' 
-                    : 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/20'
-                }`}
+                className={`flex-1 text-white text-xs font-bold py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-lg ${isExporting
+                  ? 'bg-slate-700 cursor-not-allowed text-slate-400'
+                  : 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/20'
+                  }`}
                 title={mediaType === 'video' ? "Procesar y Descargar Video" : "Descargar Imagen"}
               >
                 {isExporting ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
                 <span className="truncate">{isExporting ? 'Procesando...' : mediaType === 'video' ? 'Exportar Video' : 'Descargar'}</span>
               </button>
-              
+
               {mediaType === 'image' && (
-                <button 
-                  onClick={() => {/* Cloud logic same as before, simplified for this file */}}
+                <button
+                  onClick={() => {/* Cloud logic same as before, simplified for this file */ }}
                   className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-green-600/20"
                 >
                   <CloudUpload size={14} />
@@ -561,18 +703,18 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
                 </button>
               )}
 
-               <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                accept="image/*,video/*" 
-                className="hidden" 
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/*,video/*"
+                className="hidden"
               />
             </div>
           </div>
         )}
       </div>
-      
+
       <div className="space-y-2 bg-slate-900/30 p-4 rounded-xl">
         <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Tips Pro:</p>
         <ul className="space-y-2">
