@@ -3,8 +3,9 @@ import { SizeSpec } from '../types';
 import {
   UserCircle, Square, Smartphone, Image as ImageIcon, Clock, Film,
   Upload, Download, RefreshCw, Maximize2, Crop, CloudUpload,
-  Wand2, Sliders, Undo2, Play, Pause, Video, Grid, Eye, EyeOff
+  Wand2, Sliders, Undo2, Play, Pause, Video, Grid, Eye, EyeOff, HelpCircle
 } from 'lucide-react';
+import EditorTutorial from './EditorTutorial';
 
 interface SizeCardProps {
   spec: SizeSpec;
@@ -62,7 +63,13 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
   });
   const [showSafeZones, setShowSafeZones] = useState(false);
   const [showGridGuide, setShowGridGuide] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // Transform State for Zoom/Pan
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [isPanning, setIsPanning] = useState(false);
+  const lastPointerPos = useRef({ x: 0, y: 0 });
 
   // --- CLEANUP ---
   useEffect(() => {
@@ -76,6 +83,8 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const type = file.type.startsWith('video/') ? 'video' : 'image';
+
       // Cleanup previous
       if (mediaSrc) URL.revokeObjectURL(mediaSrc);
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
@@ -83,9 +92,10 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
       setOriginalFile(file);
       const url = URL.createObjectURL(file);
       setMediaSrc(url);
-
-      const type = file.type.startsWith('video/') ? 'video' : 'image';
       setMediaType(type);
+
+      // Reset Transforms on new file
+      setTransform({ x: 0, y: 0, scale: 1 });
 
       // Reset edits
       setActiveFilter('normal');
@@ -98,6 +108,45 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
         setIsPlaying(true);
       }
     }
+  };
+
+  // --- GESTURE HANDLERS (Zoom/Pan) ---
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault(); // Prevent page scroll
+    if (!mediaSrc) return;
+
+    const scaleFactor = 0.1;
+    const direction = e.deltaY > 0 ? -1 : 1;
+    const newScale = Math.min(Math.max(transform.scale + (direction * scaleFactor), 0.1), 5); // Limit 0.1x to 5x
+
+    setTransform(prev => ({ ...prev, scale: newScale }));
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!mediaSrc) return;
+    (e.target as Element).setPointerCapture(e.pointerId);
+    setIsPanning(true);
+    lastPointerPos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isPanning || !mediaSrc) return;
+
+    const deltaX = e.clientX - lastPointerPos.current.x;
+    const deltaY = e.clientY - lastPointerPos.current.y;
+
+    setTransform(prev => ({
+      ...prev,
+      x: prev.x + deltaX,
+      y: prev.y + deltaY
+    }));
+
+    lastPointerPos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setIsPanning(false);
+    (e.target as Element).releasePointerCapture(e.pointerId);
   };
 
   const resetEdits = () => {
@@ -137,6 +186,16 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
 
     const filterStr = getFilterString();
 
+    // --- APPLY TRANSFORMS & DRAW ---
+    ctx.save();
+
+    // Apply User Transform (Pan/Zoom)
+    // We translate to center, scale, translate back to allow "zoom from center" feel roughly, 
+    // plus the user's manual XY offset.
+    ctx.translate(spec.width / 2 + transform.x, spec.height / 2 + transform.y);
+    ctx.scale(transform.scale, transform.scale);
+    ctx.translate(-spec.width / 2, -spec.height / 2);
+
     if (fitMode === 'cover') {
       // --- FILL / CROP ---
       const scale = Math.max(spec.width / sw, spec.height / sh);
@@ -151,7 +210,16 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     } else {
       // --- CONTAIN / FIT ---
 
-      // 1. Blur Background
+      // 1. Blur Background (Drawn BEFORE transform logic normally to fill screen, 
+      // but if we want consistency let's just draw the main image transformed.
+      // Actually, for "Contain", the background blur usually stays static filling the frame?
+      // Let's keep background blur static (untransformed) to avoid seeing edges when panning "contain".
+
+      // RESTORE for background, then SAVE again for foreground
+      ctx.restore();
+      ctx.save();
+
+      // Draw Blur BG (Static)
       const scaleCover = Math.max(spec.width / sw, spec.height / sh);
       const wCover = sw * scaleCover;
       const hCover = sh * scaleCover;
@@ -161,10 +229,15 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
       ctx.filter = `blur(20px) ${filterStr}`;
       ctx.drawImage(source, xCover - 20, yCover - 20, wCover + 40, hCover + 40);
 
-      // 2. Dark Overlay
+      // Dark Overlay
       ctx.filter = 'none';
       ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
       ctx.fillRect(0, 0, spec.width, spec.height);
+
+      // Re-apply transforms for the main image
+      ctx.translate(spec.width / 2 + transform.x, spec.height / 2 + transform.y);
+      ctx.scale(transform.scale, transform.scale);
+      ctx.translate(-spec.width / 2, -spec.height / 2);
 
       // 3. Foreground
       const scaleContain = Math.min(spec.width / sw, spec.height / sh);
@@ -184,13 +257,18 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
       ctx.shadowOffsetY = 0;
     }
 
+    ctx.restore(); // Restore to normal coord system for Overlays
+
     // --- OVERLAYS (Draw on top of everything) ---
 
-    // 1. Grid Crop Guide (Square Guide)
+    // 2. Main Grid Crop Guide (High Visibility)
     if (showGridGuide) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([10, 10]);
+      // White standout line with shadow for contrast
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = 2; // Thicker line
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 4;
+      ctx.setLineDash([15, 10]); // Larger dash
 
       // Draw 1:1 Square centered
       // Determine side length based on shortest dimension to fit
@@ -213,7 +291,11 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
       ctx.moveTo(x, y + (side * 2) / 3);
       ctx.lineTo(x + side, y + (side * 2) / 3);
       ctx.stroke();
+
+      // Reset
       ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 1;
     }
 
     // 2. Mobile Safe Zones (Reels/Stories style)
@@ -258,7 +340,7 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     if (mediaType === 'image') {
       processImageFrame();
     }
-  }, [fitMode, activeFilter, adjustments, mediaType, mediaSrc, showSafeZones, showGridGuide]);
+  }, [fitMode, activeFilter, adjustments, mediaType, mediaSrc, showSafeZones, showGridGuide, transform]);
 
 
   // --- VIDEO PROCESSING ---
@@ -281,7 +363,7 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
       // Draw one frame so it doesn't vanish
       if (videoRef.current) drawToCanvas(videoRef.current);
     }
-  }, [isPlaying, mediaType, fitMode, activeFilter, adjustments, showSafeZones, showGridGuide]);
+  }, [isPlaying, mediaType, fitMode, activeFilter, adjustments, showSafeZones, showGridGuide, transform]);
 
 
   // --- DOWNLOAD / EXPORT ---
@@ -290,15 +372,37 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     if (!canvas) return;
 
     if (mediaType === 'image') {
-      canvas.toBlob((blob) => {
+      canvas.toBlob(async (blob) => {
         if (!blob) return;
+
+        // Try File System Access API first (Local Save)
+        if ('showSaveFilePicker' in window) {
+          try {
+            // @ts-ignore
+            const handle = await window.showSaveFilePicker({
+              suggestedName: `instacanvas-${spec.id}.jpg`,
+              types: [{
+                description: 'JPEG Image',
+                accept: { 'image/jpeg': ['.jpg', '.jpeg'] },
+              }],
+            });
+            // @ts-ignore
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            return; // Saved successfully
+          } catch (err) {
+            console.log("User cancelled or Save API failed, falling back to download", err);
+            // Fallback continues below
+          }
+        }
+
+        // Fallback
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         link.download = `instacanvas-${spec.id}.jpg`;
         link.click();
-
-        // Clean up
         setTimeout(() => URL.revokeObjectURL(url), 100);
       }, 'image/jpeg', 0.95);
     }
@@ -364,20 +468,20 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     }
   };
 
-  // --- DRAG & DROP HANDLERS ---
+  // --- DRAG & DROP FILE HANDLERS ---
   const onDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    setIsDragOver(true);
   };
 
   const onDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    setIsDragOver(false);
   };
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    setIsDragOver(false);
 
     const file = e.dataTransfer.files?.[0];
     if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
@@ -417,7 +521,7 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
 
   return (
     <div
-      className={`glass-panel p-6 rounded-2xl transition-all duration-300 transform group border-t flex flex-col h-full ${isDragging
+      className={`glass-panel p-6 rounded-2xl transition-all duration-300 transform group border-t flex flex-col h-full ${isDragOver
         ? 'bg-pink-900/30 border-pink-500 scale-105 shadow-2xl shadow-pink-500/20'
         : 'hover:bg-slate-800/50 border-white/5'
         }`}
@@ -429,9 +533,18 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
         <div className="p-3 bg-slate-900/50 rounded-xl group-hover:scale-110 transition-transform duration-300 border border-white/5">
           {getIcon(spec.iconName)}
         </div>
-        <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-700/50 text-slate-300 border border-white/5 uppercase tracking-wider">
-          {spec.aspectRatio}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowTutorial(true); }}
+            className="p-1.5 rounded-full hover:bg-slate-700/50 text-slate-500 hover:text-white transition-colors"
+            title="Ayuda y Glosario"
+          >
+            <HelpCircle size={16} />
+          </button>
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-700/50 text-slate-300 border border-white/5 uppercase tracking-wider">
+            {spec.aspectRatio}
+          </span>
+        </div>
       </div>
 
       <h3 className="text-xl font-bold mb-1 text-white group-hover:text-pink-400 transition-colors">
@@ -503,7 +616,12 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
             <div className="relative rounded-lg overflow-hidden border border-slate-600 bg-black/50 aspect-video flex items-center justify-center group/preview">
               <canvas
                 ref={canvasRef}
-                className="max-h-full max-w-full object-contain"
+                className={`max-h-full max-w-full object-contain ${isPanning ? 'cursor-grabbing' : 'cursor-grab'} touch-none`}
+                onWheel={handleWheel}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerLeave={handlePointerUp}
               />
 
               {/* Controls Overlay */}
@@ -695,7 +813,7 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
 
               {mediaType === 'image' && (
                 <button
-                  onClick={() => window.open('https://drive.google.com/drive/u/0/my-drive', '_blank')}
+                  onClick={handleDownload}
                   className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-lg shadow-green-600/20"
                 >
                   <CloudUpload size={14} />
@@ -726,6 +844,8 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
           ))}
         </ul>
       </div>
+
+      {showTutorial && <EditorTutorial onClose={() => setShowTutorial(false)} />}
     </div>
   );
 };
