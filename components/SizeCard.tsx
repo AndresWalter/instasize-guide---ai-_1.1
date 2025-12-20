@@ -161,7 +161,7 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     return `${baseFilter} ${adjustmentFilter}`.trim();
   };
 
-  const drawToCanvas = (source: HTMLImageElement | HTMLVideoElement) => {
+  const drawToCanvas = (source: HTMLImageElement | HTMLVideoElement, options?: { hideOverlays?: boolean }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -262,7 +262,8 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     // --- OVERLAYS (Draw on top of everything) ---
 
     // 2. Main Grid Crop Guide (High Visibility)
-    if (showGridGuide) {
+    // ONLY if not hidden by options
+    if (showGridGuide && !options?.hideOverlays) {
       // White standout line with shadow for contrast
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.lineWidth = 2; // Thicker line
@@ -299,7 +300,8 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     }
 
     // 2. Mobile Safe Zones (Reels/Stories style)
-    if (showSafeZones) {
+    // ONLY if not hidden by options
+    if (showSafeZones && !options?.hideOverlays) {
       ctx.fillStyle = 'rgba(239, 68, 68, 0.3)'; // Red-ish tint for danger zones
 
       // Approximate safe zones logic based on typical mobile screen ratios (9:16)
@@ -372,7 +374,17 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
     if (!canvas) return;
 
     if (mediaType === 'image') {
+      // 1. Redraw without overlays
+      const img = new Image();
+      img.src = mediaSrc!;
+      await new Promise((resolve) => { img.onload = resolve; });
+
+      drawToCanvas(img, { hideOverlays: true });
+
       canvas.toBlob(async (blob) => {
+        // Restore overlays immediately after capturing blob
+        drawToCanvas(img, { hideOverlays: false });
+
         if (!blob) return;
 
         // Try File System Access API first (Local Save)

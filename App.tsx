@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import Footer from './components/Footer';
 import SizeCard from './components/SizeCard';
-import GeminiAssistant from './components/GeminiAssistant';
 import { SIZE_DATA } from './constants';
 import { LayoutGrid, Smartphone, MonitorPlay, Sparkles } from 'lucide-react';
 
@@ -20,15 +19,15 @@ const App: React.FC = () => {
   const filteredData = activeCategory === 'all'
     ? SIZE_DATA
     : SIZE_DATA.filter(item => {
-        if (activeCategory === 'reels') return item.category === 'reels' || item.category === 'video';
-        return item.category === activeCategory;
-      });
+      if (activeCategory === 'reels') return item.category === 'reels' || item.category === 'video';
+      return item.category === activeCategory;
+    });
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-white selection:bg-pink-500 selection:text-white">
-      
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        
+
         {/* Modern Minimal Header */}
         <div className="text-center mb-12 pt-4 animate-fade-in">
           <div className="inline-flex items-center justify-center gap-2 mb-4 px-4 py-1.5 rounded-full bg-slate-800/50 border border-white/5 text-xs font-medium text-pink-400 uppercase tracking-widest">
@@ -56,11 +55,10 @@ const App: React.FC = () => {
               <button
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 border ${
-                  isActive
-                    ? 'bg-slate-800 border-pink-500 text-pink-400 shadow-lg shadow-pink-500/10'
-                    : 'bg-slate-900/50 border-white/5 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                }`}
+                className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 border ${isActive
+                  ? 'bg-slate-800 border-pink-500 text-pink-400 shadow-lg shadow-pink-500/10'
+                  : 'bg-slate-900/50 border-white/5 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                  }`}
               >
                 <Icon size={16} />
                 {cat.label}
@@ -85,7 +83,6 @@ const App: React.FC = () => {
       </main>
 
       <Footer />
-      <GeminiAssistant />
     </div>
   );
 };
