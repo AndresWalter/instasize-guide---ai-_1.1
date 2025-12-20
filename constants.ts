@@ -76,8 +76,8 @@ export const SIZE_DATA: SizeSpec[] = [
     description: 'Contenido efímero a pantalla completa.',
     iconName: 'Clock',
     tips: [
-      'Deja "zonas seguras" arriba y abajo (aprox 250px) para iconos de perfil y respuestas.',
-      'Usa videos de menos de 60 segundos para que no se corten mal.',
+      'Deja "zonas seguras" arriba y abajo (aprox 250px) para iconos.',
+      'Duración máxima por clip: 15 segundos.',
       'El contenido centrado funciona mejor.'
     ]
   },
@@ -93,13 +93,29 @@ export const SIZE_DATA: SizeSpec[] = [
     iconName: 'Film',
     tips: [
       'La zona inferior se cubre con descripción y audio.',
-      'En el feed principal se previsualiza en 4:5.',
+      'Duración máxima: hasta 90 segundos.',
       'Graba en alta calidad y buena luz.'
     ]
   },
   {
+    id: 'video-long',
+    title: 'Video Largo (IGTV)',
+    category: 'video',
+    dimensions: '1920 x 1080 px',
+    width: 1920,
+    height: 1080,
+    aspectRatio: '16:9',
+    description: 'Formato horizontal para contenido largo tipo YouTube.',
+    iconName: 'MonitorPlay',
+    tips: [
+      'Ideal para tutoriales o vlogs largos.',
+      'Se ve en horizontal al girar el teléfono.',
+      'Resolución recomendada: 1920x1080 px.'
+    ]
+  },
+  {
     id: 'igtv-cover',
-    title: 'Portada de Video / Reels',
+    title: 'Portada de Carrusel / Video',
     category: 'video',
     dimensions: '420 x 654 px',
     width: 420,
@@ -109,7 +125,7 @@ export const SIZE_DATA: SizeSpec[] = [
     iconName: 'Image',
     tips: [
       'Es crucial para incitar al clic.',
-      'Asegúrate de que el centro (1:1) sea atractivo para el grid de perfil.',
+      'Asegúrate de que el centro (1:1) sea atractivo para el grid.',
       'Puedes subir una imagen personalizada separada del video.'
     ]
   }

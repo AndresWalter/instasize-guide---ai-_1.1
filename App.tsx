@@ -32,7 +32,7 @@ const App: React.FC = () => {
         <div className="text-center mb-12 pt-4 animate-fade-in">
           <div className="inline-flex items-center justify-center gap-2 mb-4 px-4 py-1.5 rounded-full bg-slate-800/50 border border-white/5 text-xs font-medium text-pink-400 uppercase tracking-widest">
             <Sparkles size={12} />
-            <span>Guía Oficial 2024</span>
+            <span>Guía Oficial 2025</span>
           </div>
           <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-4">
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500">

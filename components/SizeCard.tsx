@@ -6,6 +6,7 @@ import {
   Wand2, Sliders, Undo2, Play, Pause, Video, Grid, Eye, EyeOff, HelpCircle
 } from 'lucide-react';
 import EditorTutorial from './EditorTutorial';
+import MobileFrame from './MobileFrame';
 
 interface SizeCardProps {
   spec: SizeSpec;
@@ -65,6 +66,7 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
   const [showGridGuide, setShowGridGuide] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [deviceType, setDeviceType] = useState<'iphone' | 'android'>('iphone');
 
   // Transform State for Zoom/Pan
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -624,45 +626,66 @@ const SizeCard: React.FC<SizeCardProps> = ({ spec }) => {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Preview Canvas */}
-            <div className="relative rounded-lg overflow-hidden border border-slate-600 bg-black/50 aspect-video flex items-center justify-center group/preview">
-              <canvas
-                ref={canvasRef}
-                className={`max-h-full max-w-full object-contain ${isPanning ? 'cursor-grabbing' : 'cursor-grab'} touch-none`}
-                onWheel={handleWheel}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerLeave={handlePointerUp}
-              />
-
-              {/* Controls Overlay */}
-              <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                {mediaType === 'video' && !isExporting && (
-                  <button
-                    onClick={() => setIsPlaying(!isPlaying)}
-                    className="p-3 bg-white/20 hover:bg-white/40 backdrop-blur rounded-full text-white transition-all transform hover:scale-110"
-                  >
-                    {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-                  </button>
-                )}
+            {/* Simulator Controls */}
+            <div className="flex justify-center mb-4">
+              <div className="inline-flex bg-slate-900 p-1 rounded-full border border-slate-700">
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="p-2 bg-black/50 hover:bg-black/80 rounded-full text-white backdrop-blur-sm transition-colors absolute bottom-2 right-2"
-                  title="Cambiar archivo"
+                  onClick={() => setDeviceType('iphone')}
+                  className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${deviceType === 'iphone' ? 'bg-pink-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                 >
-                  <RefreshCw size={14} />
+                  iPhone
+                </button>
+                <button
+                  onClick={() => setDeviceType('android')}
+                  className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all ${deviceType === 'android' ? 'bg-green-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                  Android
                 </button>
               </div>
+            </div>
 
-              {/* Exporting Overlay */}
-              {isExporting && (
-                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mb-2"></div>
-                  <span className="text-xs text-white font-bold animate-pulse">Procesando Video...</span>
-                  <span className="text-[10px] text-slate-400">Espera a que termine el video</span>
+            {/* Preview Canvas in Mobile Frame */}
+            <div className="flex justify-center">
+              <MobileFrame type={deviceType}>
+                <div className="relative w-full h-full flex items-center justify-center bg-black group/preview">
+                  <canvas
+                    ref={canvasRef}
+                    className={`max-h-full max-w-full object-contain ${isPanning ? 'cursor-grabbing' : 'cursor-grab'} touch-none`}
+                    onWheel={handleWheel}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerLeave={handlePointerUp}
+                  />
+
+                  {/* Controls Overlay */}
+                  <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                    {mediaType === 'video' && !isExporting && (
+                      <button
+                        onClick={() => setIsPlaying(!isPlaying)}
+                        className="p-3 bg-white/20 hover:bg-white/40 backdrop-blur rounded-full text-white transition-all transform hover:scale-110"
+                      >
+                        {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-2 bg-black/50 hover:bg-black/80 rounded-full text-white backdrop-blur-sm transition-colors absolute bottom-6 right-6 z-30"
+                      title="Cambiar archivo"
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                  </div>
+
+                  {/* Exporting Overlay */}
+                  {isExporting && (
+                    <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500 mb-2"></div>
+                      <span className="text-xs text-white font-bold animate-pulse">Procesando Video...</span>
+                    </div>
+                  )}
                 </div>
-              )}
+              </MobileFrame>
             </div>
 
             {/* Editor Controls */}
